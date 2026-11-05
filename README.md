@@ -371,7 +371,7 @@ it is the deployment's decision.
 ### Fields, parts and actions
 
 What a plug-in adds to the views and pages of Initiative's items: tasks,
-calendar events, queue items, counters and posts
+calendar events, counters and posts
 (`ITEM_KINDS`). Initiative draws all of it with its own components, so no
 plug-in code runs in a reader's browser, and the community's managers place
 it; a plug-in never places itself. Any plug-in may declare them, container or
@@ -1264,7 +1264,6 @@ either the file's version or the client is stale.
 |---|---|
 | `projects:read`, `projects:write` | Projects and what belongs to them: tasks, statuses, task types, checklists. |
 | `files:read`, `files:write` | Files: text documents, whiteboards, spreadsheets, links and uploads, and the collections they are in. |
-| `queues:read`, `queues:write` | Queues, their items and commands. |
 | `counter_groups:read`, `counter_groups:write` | Counter groups, their counters and commands. |
 | `calendars:read`, `calendars:write` | Calendars, events and attendees. |
 | `dashboards:read`, `dashboards:write` | Dashboards. |
