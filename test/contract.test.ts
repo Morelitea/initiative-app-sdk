@@ -122,6 +122,7 @@ describe("the schema draws its vocabulary from the contract", () => {
       "dashboards",
       "posts",
       "wikis",
+      "contacts",
     ];
     expect([...SCOPES]).toEqual([
       ...tools.flatMap((tool) => [`${tool}:read`, `${tool}:write`]),
