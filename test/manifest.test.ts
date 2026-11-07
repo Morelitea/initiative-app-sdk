@@ -1695,11 +1695,12 @@ describe("declarative plug-ins", () => {
 
     manifest.endpoints![2].actors = ["installation"];
     expect(problems(manifest)).toBe(
-      "/endpoints/2/request/connection: its request uses the member connection 'account', which a call made as the installation does not have"
+      "/endpoints/2/request/connection: its request uses the member connection 'account', " +
+        "which a call made as the installation does not have: name a connection per actor"
     );
   });
 
-  it("holds a connection per actor to a write's request, naming one of the right scope for each of the endpoint's actors", () => {
+  it("holds a connection per actor to the endpoint's actors, naming one of the right scope for each", () => {
     const manifest = declarative();
     const [read, label, , assign, , create, , link] = manifest.endpoints!;
     read.request!.connection = { installation: "workspace" };
@@ -1711,7 +1712,7 @@ describe("declarative plug-ins", () => {
     link.request!.connection = { installation: "workspace" };
     expect(problems(manifest)).toBe(
       [
-        "/endpoints/0/request/connection: only a write endpoint's request names a connection per actor",
+        "/endpoints/0/request/connection: names a connection per actor, and the endpoint declares no actors",
         "/endpoints/1/steps/0/request/connection: names no connection for 'installation', one of the endpoint's actors",
         "/endpoints/1/steps/0/request/connection/member: 'member' is not one of the endpoint's actors",
         "/endpoints/3/request/connection/installation: 'account' is not a static connection: a call made as the installation carries the community's credential",
@@ -1721,6 +1722,11 @@ describe("declarative plug-ins", () => {
         "/connections/0/health/request/connection: carries the credential of the connection it belongs to, and names none",
       ].join("\n")
     );
+
+    const reading = declarative();
+    reading.endpoints![0].actors = ["member", "installation"];
+    reading.endpoints![0].request!.connection = { member: "account", installation: "workspace" };
+    expect(problems(reading)).toBe("");
 
     const shaped = declarative();
     shaped.endpoints![3].request!.connection = {};

@@ -1172,11 +1172,11 @@ function wellFormedHost(host: string): boolean {
  * What a declarative plug-in's terms say: every expression parses, every request
  * names what it may, a request naming a member's connection for every call is
  * on an endpoint whose `requires` names it and whose actors leave out the
- * installation, a request naming a connection per actor is a write's and names
- * one for each of the endpoint's actors (the member's interactive, the
- * installation's static), steps read only the steps before them, every event
- * row emits a declared emission with its map, writes, or both, and each refusal
- * names a code the endpoint has.
+ * installation, a request naming a connection per actor names one for each of
+ * the endpoint's actors (the member's interactive, the installation's static),
+ * steps read only the steps before them, every event row emits a declared
+ * emission with its map, writes, or both, and each refusal names a code the
+ * endpoint has.
  */
 function declarativeProblems(body: Manifest): ValidationProblem[] {
   const problems: ValidationProblem[] = [];
@@ -1267,16 +1267,13 @@ function declarativeProblems(body: Manifest): ValidationProblem[] {
           push(`${at}/connection`, `its request uses the member connection '${named}', which requires does not name`);
         }
         if (endpoint.actors?.includes("installation")) {
-          const instead = endpoint.direction === "write" ? ": name a connection per actor" : "";
           push(
             `${at}/connection`,
-            `its request uses the member connection '${named}', which a call made as the installation does not have${instead}`
+            `its request uses the member connection '${named}', which a call made as the installation does not have: name a connection per actor`
           );
         }
       } else if (named !== undefined) {
-        if (endpoint.direction !== "write") {
-          push(`${at}/connection`, "only a write endpoint's request names a connection per actor");
-        } else if (!endpoint.actors) {
+        if (!endpoint.actors) {
           push(`${at}/connection`, "names a connection per actor, and the endpoint declares no actors");
         } else {
           for (const actor of ACTOR_KINDS) {
