@@ -992,10 +992,10 @@ it("lists a repository's open issues", async () => {
   has no member's credential. A call made as a member carries a `static`
   connection's credential only when `requires` names it, and is refused
   otherwise.
-- **A connection per actor.** A write's request or step may name one
-  connection for each of the endpoint's `actors` in place of one for every
-  call, so a call made as the member carries the member's own credential and
-  one made as the installation the community's:
+- **A connection per actor.** A read's or write's request or step may name
+  one connection for each of the endpoint's `actors` in place of one for
+  every call, so a call made as the member carries the member's own
+  credential and one made as the installation the community's:
 
   ```ts
   export const comment = defineEndpoint({
