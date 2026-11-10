@@ -655,6 +655,12 @@ function referenceProblems(body: Manifest, publicId: string | undefined): Valida
   for (const block of ["pages", "fields", "parts", "actions"] as const) {
     (body[block] ?? []).forEach((item, index) => checkRequires(item.requires, `/${block}/${index}/requires`));
   }
+  if (body.sign_in && !(body.pages ?? []).some((page) => page.id === body.sign_in?.page)) {
+    problems.push({
+      where: "/sign_in/page",
+      message: `names '${body.sign_in.page}', which is not one of this manifest's pages`,
+    });
+  }
   (body.actions ?? []).forEach((action, index) => {
     const where = `/actions/${index}`;
     if (action.endpoint === undefined) {

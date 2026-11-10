@@ -964,6 +964,33 @@ describe("an admin-only page", () => {
   });
 });
 
+describe("sign_in", () => {
+  const signingIn = (sign_in: unknown) =>
+    validateManifest({
+      ...base(),
+      features: ["pages"],
+      pages: [{ id: "inventory", path: "/inventory", name: { en: "Inventory" } }],
+      sign_in,
+    } as never);
+
+  it("names one of the manifest's pages and a path to come back to", () => {
+    expect(messages(signingIn({ page: "inventory", return_path: "/signed-in" }))).toBe("");
+  });
+
+  it("refuses a page the manifest does not declare", () => {
+    expect(messages(signingIn({ page: "elsewhere", return_path: "/signed-in" }))).toBe(
+      "/sign_in/page: names 'elsewhere', which is not one of this manifest's pages"
+    );
+  });
+
+  it("refuses an address in place of a path, and a missing half", () => {
+    expect(signingIn({ page: "inventory", return_path: "https://elsewhere.test/back" })[0].where).toContain(
+      "/sign_in/return_path"
+    );
+    expect(signingIn({ page: "inventory" }).length).toBeGreaterThan(0);
+  });
+});
+
 describe("terms the contract does not declare", () => {
   it("reports a page's visibility, which placement roles replaced", () => {
     const problems = validateManifest({

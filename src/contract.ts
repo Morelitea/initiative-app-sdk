@@ -273,7 +273,7 @@ export const FIELDS = {
   healthState: ["status", "when", "state"],
   webhookEvent: ["when", "emit", "map", "write"],
   webhookStatus: ["when", "connection", "state"],
-  manifest: ["plugin_kind", "service", "features", "default_name", "minimum_age", "min_plugin_api", "hosts", "auth", "scopes", "vendor", "connections", "webhooks", "schedules", "endpoints", "community_summary", "widgets", "pages", "dashboards", "fields", "parts", "actions", "settings", "help"],
+  manifest: ["plugin_kind", "service", "features", "default_name", "minimum_age", "min_plugin_api", "hosts", "auth", "scopes", "vendor", "connections", "webhooks", "schedules", "endpoints", "community_summary", "widgets", "pages", "sign_in", "dashboards", "fields", "parts", "actions", "settings", "help"],
 } as const;
 
 export type Identifier = string;
@@ -2016,6 +2016,29 @@ export interface Manifest {
   community_summary?: NamespacedId;
   widgets?: Widget[];
   pages?: Page[];
+  /**
+   * Sign in with Initiative: people may also open the plug-in at its own
+   * address, full-window, signing in with their Initiative account through
+   * OpenID Connect's authorization code flow. The ID token carries what the
+   * page handoff carries for the place they chose, and renews against
+   * Initiative. Needs 'pages'. Absent: the plug-in's pages open only inside
+   * Initiative.
+   */
+  sign_in?: {
+    /**
+     * The id of one of this plug-in's pages: the page somebody lands in after
+     * signing in at the plug-in's own address. Who may open it is decided as
+     * for that page inside Initiative, so somebody signs in only to a place
+     * where they could open it there.
+     */
+    page: Identifier;
+    /**
+     * Where Initiative sends somebody back with an authorization code: this
+     * path on the origin the deployment serves the plug-in's pages from.
+     * Matched exactly.
+     */
+    return_path: Path;
+  };
   /**
    * Ready-made arrangements of this plug-in's own widgets. Publishing the
    * plug-in publishes one ordinary dashboard listing per entry, offered to

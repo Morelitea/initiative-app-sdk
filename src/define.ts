@@ -560,6 +560,14 @@ export interface PluginDefinition<E, W> {
   widgets?: W;
   /** Pages and panels, keyed by page id. */
   pages?: Record<string, PageDeclaration>;
+  /**
+   * Sign in with Initiative: people may also open the plug-in at its own
+   * address, signing in with their Initiative account. `page` is the page they
+   * land in (a key of `pages`); `returnPath` is where Initiative sends them back
+   * with a code, on the origin the plug-in's pages are served from. The client
+   * half is `Initiative.signIn`.
+   */
+  signIn?: { page: string; returnPath: string };
   dashboards?: DashboardDeclaration<E, W>[];
   /** How the plug-in's metadata is shown on items, keyed by metadata key. */
   fields?: Record<string, Omit<Field, "key">>;
@@ -621,6 +629,7 @@ export function manifestOf(plugin: AnyPlugin, modules: Record<string, string> = 
       const { handler: _handler, ...declared } = page;
       return { id: key, ...declared };
     }),
+    sign_in: plugin.signIn && { page: plugin.signIn.page, return_path: plugin.signIn.returnPath },
     dashboards: plugin.dashboards?.map((dashboard) => ({
       ...dashboard,
       widgets: dashboard.widgets.map((widget) => ({
