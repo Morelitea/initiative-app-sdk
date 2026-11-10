@@ -122,7 +122,7 @@ hooks: {
     const login = await vendorLogin(access_token);
     return { values: { login }, account_label: `@${login}` }; // or { refuse: true }
   },
-  revoke: async ({ connection, access_token, refresh_token }) => { /* end the grant */ },
+  revoke: async ({ connection, access_token, refresh_token, values }) => { /* end the grant */ },
   webhook: async ({ connection, headers, body, client }) => {
     await client.emitEvent({ eventType: "plugin.acme.tracker.ticket-opened", payload: { number: 7 } });
   },
@@ -131,13 +131,28 @@ hooks: {
 
 - `after_connect` runs once a connection's flow has exchanged its code, when
   the flow sets `after_connect`.
+- It also runs when an admin saves a static connection without a flow that
+  sets `after_connect: true` beside its `fields`, before anything is stored:
+  `access_token` is null and `values` holds what they typed, secrets included.
+  Check them at the vendor and answer the connection's managed values and an
+  account label, or `{ refuse: true }` to store nothing. This is where a
+  plug-in makes the vendor's webhooks for the connection, with a secret of 32
+  random bytes kept in a managed `secret` field.
 - `revoke` runs when a connection whose flow says `revoke: "hook"` ends. A
   flow can instead have Initiative end the grant itself: `rfc7009` posts to
   `revoke_url`, and `github_grant` sends GitHub's "Delete an app authorization"
   (`DELETE` with the client's credentials and the access token) to it.
+- `revoke` also runs when a connection with `after_connect: true` beside its
+  `fields` is cleared or replaced, or a value it checked is not kept, with the
+  `values` it held, so you can remove what you made at the vendor.
 - `webhook` runs once per community for each vendor delivery Initiative
   received, checked and routed; `headers` are the vendor's `x-` headers,
-  lowercased, and `body` is exactly what the vendor sent.
+  lowercased, and `body` is exactly what the vendor sent. Initiative checks a
+  delivery under `webhooks.verify.secret`: one vendor value,
+  `{vendor.<key>}`, or a managed `secret` field of the routed connection,
+  `{<key>}`. With a connection's secret, it routes the delivery first and
+  checks it under the secret of each connection its route value names. A
+  delivery whose body a community already has is not handed on again.
 - Each schedule's `run` is called once per community each interval, with
   `since`: when it last succeeded there, or null the first time.
 

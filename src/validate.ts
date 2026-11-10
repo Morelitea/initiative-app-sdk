@@ -743,6 +743,18 @@ function connectionProblems(body: Manifest): ValidationProblem[] {
         message: "a static connection without a flow declares at least one field for an admin to fill in",
       });
     }
+    if (connection.after_connect && (flow || connection.scope !== "static")) {
+      problems.push({
+        where: `${where}/after_connect`,
+        message: "after_connect beside the fields is for a static connection without a flow; a flow names its own",
+      });
+    }
+    if (!flow && !connection.after_connect && connection.fields.some((field) => field.managed === true)) {
+      problems.push({
+        where: `${where}/after_connect`,
+        message: "managed values come from the after_connect hook, which this connection does not call",
+      });
+    }
     if (flow) {
       connection.fields.forEach((field, position) => {
         if (field.managed !== true) {
@@ -836,27 +848,40 @@ function connectionProblems(body: Manifest): ValidationProblem[] {
 }
 
 /**
- * What a webhooks block names: its secret is one vendor value, and its route
- * is a field of a static connection.
+ * What a webhooks block names: its secret is one vendor value or a managed
+ * secret field of the routed connection, and its route is a field of a static
+ * connection.
  */
 function webhookProblems(body: Manifest): ValidationProblem[] {
   const webhooks = body.webhooks;
   if (!webhooks) return [];
   const problems: ValidationProblem[] = [];
   const vendorKeys = new Set((body.vendor?.fields ?? []).map((field) => field.key));
+  const { connection: connectionId, field } = webhooks.route;
+  const connection = (body.connections ?? []).find((entry) => entry.id === connectionId);
   const secret = webhooks.verify.secret;
   const names = templateNames(secret);
-  const key = names.length === 1 && names[0]?.startsWith("vendor.") ? names[0].slice(7) : null;
-  if (key === null || secret !== `{vendor.${key}}`) {
+  const name = names.length === 1 && secret === `{${names[0]}}` ? names[0] : null;
+  if (name === null) {
     problems.push({
       where: "/webhooks/verify/secret",
-      message: "the signing secret is one vendor value, written '{vendor.<key>}'",
+      message: "the signing secret is one vendor value, '{vendor.<key>}', or one field of the routed connection, '{<key>}'",
     });
-  } else if (!vendorKeys.has(key)) {
-    problems.push({
-      where: "/webhooks/verify/secret",
-      message: `'{vendor.${key}}' is not a field of the vendor block`,
-    });
+  } else if (name.startsWith("vendor.")) {
+    if (!vendorKeys.has(name.slice("vendor.".length))) {
+      problems.push({
+        where: "/webhooks/verify/secret",
+        message: `'{${name}}' is not a field of the vendor block`,
+      });
+    }
+  } else {
+    const secretField = connection?.fields.find((entry) => entry.key === name);
+    if (!secretField || secretField.managed !== true || secretField.type !== "secret") {
+      problems.push({
+        where: "/webhooks/verify/secret",
+        message: `'{${name}}' is not a managed secret field of the connection '${connectionId}'`,
+      });
+    }
   }
 
   if ((webhooks.route.path === undefined) === (webhooks.route.header === undefined)) {
@@ -865,8 +890,6 @@ function webhookProblems(body: Manifest): ValidationProblem[] {
       message: "a delivery is routed by exactly one of 'path' and 'header'",
     });
   }
-  const { connection: connectionId, field } = webhooks.route;
-  const connection = (body.connections ?? []).find((entry) => entry.id === connectionId);
   if (!connection || connection.scope !== "static") {
     problems.push({
       where: "/webhooks/route/connection",
@@ -1098,6 +1121,9 @@ function kindProblems(body: Manifest): ValidationProblem[] {
       }
     });
     connections.forEach((connection, index) => {
+      if (connection.after_connect) {
+        push(`/connections/${index}/after_connect`, "a declarative plug-in has no after_connect hook to check what an admin types");
+      }
       const where = `/connections/${index}/flow`;
       if (connection.flow?.after_connect === true) {
         push(`${where}/after_connect`, "a declarative plug-in gives after_connect's request and map: there is no hook to call");

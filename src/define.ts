@@ -198,14 +198,23 @@ export function defineEndpoint(endpoint: EndpointDeclaration): EndpointDeclarati
   return endpoint;
 }
 
-/** What `after_connect` is sent, once a connection's flow has exchanged its code. */
+/** A connection field's value, as an admin typed it or `after_connect` answered it. */
+export type ConnectionValue = string | number | boolean;
+
+/**
+ * What `after_connect` is sent: once a connection's flow has exchanged its
+ * code, or when an admin saves a connection without a flow that declares
+ * `after_connect`, before anything they typed is stored.
+ */
 export interface AfterConnectCall extends Call {
   /** The connection's manifest id. */
   connection: string;
   /** `member` for a member's own account, `installation` for the community's. */
   actor: ActorKind;
-  /** The access token the flow just obtained, to look the account up with. */
-  access_token: string;
+  /** The access token the flow just obtained, to look the account up with; null for a connection without a flow. */
+  access_token: string | null;
+  /** What the admin typed into a connection without a flow, secrets included; empty after a flow. */
+  values: Record<string, ConnectionValue>;
   /** The flow's parameters, such as the `installation_id` an install page returned. */
   params: Record<string, string>;
 }
@@ -215,11 +224,17 @@ export type AfterConnectAnswer =
   | { values?: Record<string, unknown>; account_label?: string }
   | { refuse: true };
 
-/** What `revoke` is sent when a connection whose flow says `revoke: "hook"` ends. */
+/**
+ * What `revoke` is sent when a connection ends: one whose flow says
+ * `revoke: "hook"`, with its tokens, or one without a flow that declares
+ * `after_connect`, cleared or replaced, with the values it held.
+ */
 export interface RevokeCall extends Call {
   connection: string;
   access_token: string | null;
   refresh_token: string | null;
+  /** A connection without a flow: the values it held, typed and managed, secrets included. Empty for a flow's. */
+  values: Record<string, ConnectionValue>;
 }
 
 /** One vendor webhook delivery, which Initiative checked and routed to this installation. */
