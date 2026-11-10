@@ -661,8 +661,10 @@ fields: {
 in the community said otherwise; absent, only the roles the community chooses
 hold it. A page names one permission for every level it renders in, so one
 rendering at both names one declared at both. An endpoint naming a permission
-is read only by those who hold it in the initiative it is read in, and is not
-offered to other plug-ins. A handoff and an ID token carry the ids the person
+is read only by those who hold it in the initiative it is read in. Another
+plug-in calling one of your public endpoints for a member is held to that
+member's permission for it, the one it names or `use`; one calling as the
+community, to what the community granted it. A handoff and an ID token carry the ids the person
 holds where the page was opened as `permissions`, so your pages can shape
 themselves the same way.
 
