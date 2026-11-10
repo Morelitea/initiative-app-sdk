@@ -11,8 +11,9 @@
  * and webhook events take, the unique keys and ids of `fields`, `parts`,
  * `actions` and `settings`, the unique values of a field's `options`, what a
  * part's nodes, a field's element actions and an action's endpoint and
- * `params` name, the placeholders in a part's text, and a part's size and
- * depth.
+ * `params` name, the permissions `permissions` declares and every page, field,
+ * part, action and endpoint names, the placeholders in a part's text, and a
+ * part's size and depth.
  *
  * {@link validateManifest} runs the schema and then every one of those except
  * the byte caps. It also reports every term the contract does not declare: a
@@ -240,6 +241,7 @@ export function validateManifest(manifest: unknown, options: { publicId?: string
     ...undeclaredProblems(body),
     ...featureProblems(body),
     ...referenceProblems(body, options.publicId),
+    ...permissionProblems(body),
     ...connectionProblems(body),
     ...webhookProblems(body),
     ...setupProblems(body),
@@ -549,7 +551,7 @@ function referenceProblems(body: Manifest, publicId: string | undefined): Valida
     // this list: an emission is the one endpoint chosen without ever being
     // called, so describing it matters more here than anywhere.
     if (endpoint.direction === "emit") {
-      for (const key of ["params", "requires", "cache_ttl_seconds", "actors", "public"]) {
+      for (const key of ["params", "requires", "cache_ttl_seconds", "actors", "public", "permission"]) {
         if ((endpoint as unknown as Record<string, unknown>)[key] !== undefined) {
           problems.push({
             where: `${where}/${key}`,
@@ -722,6 +724,43 @@ function referenceProblems(body: Manifest, publicId: string | undefined): Valida
  * The platform refuses each of these on publish; they are repeated here so an
  * author finds out before that.
  */
+/**
+ * Each permission declared once at its level, and every page, field, part,
+ * action and endpoint naming one declared where it is held, or `use`, which
+ * every plug-in has at each level. A page is held at each level it renders in;
+ * the rest inside an initiative.
+ */
+function permissionProblems(body: Manifest): ValidationProblem[] {
+  const problems: ValidationProblem[] = [];
+  const declared = new Set<string>();
+  (body.permissions ?? []).forEach((permission, index) => {
+    const key = `${permission.level}:${permission.id}`;
+    if (declared.has(key)) {
+      problems.push({
+        where: `/permissions/${index}/id`,
+        message: `'${permission.id}' is declared twice at the ${permission.level} level`,
+      });
+    }
+    declared.add(key);
+  });
+  const named = (entries: Array<{ permission?: string }> | undefined, block: string, levels: (index: number) => readonly string[]) =>
+    (entries ?? []).forEach((entry, index) => {
+      const id = entry.permission;
+      if (id === undefined || id === "use") return;
+      for (const level of levels(index)) {
+        if (!declared.has(`${level}:${id}`)) {
+          problems.push({
+            where: `/${block}/${index}/permission`,
+            message: `'${id}' is not a permission this manifest declares at the ${level} level`,
+          });
+        }
+      }
+    });
+  named(body.pages, "pages", (index) => body.pages![index].scopes ?? ["community"]);
+  for (const block of ["fields", "parts", "actions", "endpoints"] as const) named(body[block], block, () => ["initiative"]);
+  return problems;
+}
+
 function connectionProblems(body: Manifest): ValidationProblem[] {
   const problems: ValidationProblem[] = [];
   const vendorKeys = new Set((body.vendor?.fields ?? []).map((field) => field.key));

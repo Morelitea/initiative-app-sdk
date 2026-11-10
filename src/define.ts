@@ -40,6 +40,7 @@ import type {
   ItemKind,
   Manifest,
   Part,
+  Permission,
   RequestStep,
   ReturnValueType,
   Scope,
@@ -340,6 +341,8 @@ export interface Handoff extends Call {
   admin: boolean;
   /** The initiative the page was opened in, or null for the whole community. */
   initiative: number | null;
+  /** The ids of the plug-in's permissions the viewer holds where the page was opened, `use` among them. */
+  permissions: string[];
 }
 
 export interface PageCall {
@@ -592,6 +595,12 @@ export interface PluginDefinition<E, W> {
   actions?: Record<string, ActionDeclaration<E>>;
   /** Values the community's admins set on the install, keyed by setting key. */
   settings?: Record<string, Omit<Setting, "key">>;
+  /**
+   * What the community decides who may do with the plug-in. A page, field,
+   * part, action or endpoint names one as its `permission`; one that names none
+   * answers to `use`, which every plug-in has at each level.
+   */
+  permissions?: Permission[];
   /** Help with the plug-in's parts and settings: markdown, keyed by language tag. */
   help?: Manifest["help"];
   listing?: ListingDeclaration;
@@ -660,6 +669,7 @@ export function manifestOf(plugin: AnyPlugin, modules: Record<string, string> = 
       ...(action.endpoint === undefined ? {} : { endpoint: id(action.endpoint) }),
     })),
     settings: listOf(plugin.settings, (key, setting) => ({ key, ...setting })),
+    permissions: plugin.permissions?.length ? plugin.permissions.map((permission) => ({ ...permission })) : undefined,
     help: plugin.help,
   };
   const present = Object.fromEntries(

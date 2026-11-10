@@ -344,6 +344,7 @@ export function createPlugin(
         viewer: claims.sub,
         admin: claims.community_admin === true,
         initiative: claims.initiative_id ?? null,
+        permissions: Array.isArray(claims.permissions) ? [...claims.permissions] : [],
       };
     }
     return declaration.handler!({ request, handoff });
