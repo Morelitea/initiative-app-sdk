@@ -224,10 +224,11 @@ describe("a declarative definition", () => {
       "plugin.acme.issues.link-issue",
       undefined,
     ]);
-    expect(Object.keys(declarative).slice(-2)).toEqual(["settings", "help"]);
+    expect(Object.keys(declarative).slice(-3)).toEqual(["settings", "permissions", "help"]);
     expect(declarative.settings).toEqual([
       { key: "prefix", type: "string", label: { en: "Reference prefix" }, unique: true, assigned: "community_name" },
     ]);
+    expect(declarative.permissions).toEqual([{ id: "unlink", level: "initiative", name: { en: "Unlink issues" } }]);
   });
 
   it("is a manifest the SDK's own validation passes", () => {

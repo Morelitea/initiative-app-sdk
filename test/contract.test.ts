@@ -151,11 +151,12 @@ describe("the schema draws its vocabulary from the contract", () => {
     expect(schema.$defs.endpoint.properties).not.toHaveProperty("visibility");
   });
 
-  it("a page can be marked admin-only, defaulting to false", () => {
-    expect(schema.$defs.page.properties.admin_only).toMatchObject({
-      type: "boolean",
-      default: false,
-    });
+  it("a surface names a permission rather than an audience", () => {
+    for (const def of ["page", "field", "part", "action", "endpoint"]) {
+      expect(schema.$defs[def].properties).not.toHaveProperty("admin_only");
+      expect(schema.$defs[def].properties.permission).toBeDefined();
+    }
+    expect(schema.$defs.permission.properties.level.enum).toEqual(["community", "initiative"]);
   });
 
   it("a plug-in's requested scopes are unique", () => {

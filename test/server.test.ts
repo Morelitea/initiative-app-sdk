@@ -427,13 +427,13 @@ describe("community hooks", () => {
 
 describe("pages", () => {
   it("serves the page's own requests with no handoff", async () => {
-    expect(await read(get("/board"))).toEqual({ viewer: null, initiative: null, admin: null });
+    expect(await read(get("/board"))).toEqual({ viewer: null, initiative: null, admin: null, permissions: null });
   });
 
   it("hands a verified handoff to the page, once", async () => {
-    const token = handoffToken();
+    const token = handoffToken({ permissions: ["use", "prices"] });
     const opened = await get("/board/session", { Authorization: `Bearer ${token}` });
-    expect(await read(opened)).toEqual({ viewer: "uapp_alice", initiative: 4, admin: true });
+    expect(await read(opened)).toEqual({ viewer: "uapp_alice", initiative: 4, admin: true, permissions: ["use", "prices"] });
     expect((await get("/board/session", { Authorization: `Bearer ${token}` })).status).toBe(401);
   });
 

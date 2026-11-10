@@ -357,8 +357,8 @@ pages: {
 Initiative hands the frame a one-use handoff token. Send it from the page to
 any path under the page's as `Authorization: Bearer …`: the SDK verifies it
 (type, signature, audience, page, and that it was not used before) and hands the
-handler `viewer`, `admin`, `initiative` and a `client` acting as the
-installation, narrowed to that initiative.
+handler `viewer`, `admin`, `initiative`, `permissions` and a `client` acting
+as the installation, narrowed to that initiative.
 
 ### Sign in with Initiative
 
@@ -392,9 +392,10 @@ const renewed = await initiative.signIn.refresh(refreshToken);
 ```
 
 The ID token carries what a handoff carries for the place they chose (`sub`,
-`community_ref`, `surface_id`, `community_admin`, and `initiative_id` with
-`initiative_moderator` inside an initiative), and nothing about their name,
-address or other communities. Its issuer is the deployment's own address, so a
+`community_ref`, `surface_id`, `community_admin`, `permissions`, and
+`initiative_id` with `initiative_moderator` inside an initiative), and nothing
+about their name, address or other communities. Its issuer is the deployment's
+own address, so a
 handoff is never accepted as an ID token, nor the other way round. Every
 renewal asks Initiative again whether the person is still signed in there and
 may still open the page in that place: an `invalid_grant` (`SignInError`) ends
@@ -538,8 +539,7 @@ it as the installation, with `viewer` and `subject` set, and the handler does
 the work, usually writing metadata. A declarative plug-in's names an endpoint,
 a `write`, or both, and Initiative does the work itself. Either way Initiative
 then answers the reader with the item's metadata as it stands. With `confirm`,
-Initiative asks first; with `admin_only: true`, only the community's admins may
-run it.
+Initiative asks first. Who may run it is a permission (see "Who may use what").
 
 `params` names the endpoint's params Initiative asks the reader for before it
 runs the action, in a form drawn from their own declarations: each one's type,
@@ -630,6 +630,41 @@ its settings:
 ```ts
 help: { en: "Links issues to tasks. Name a task's reference, such as **acme-7**, in an issue's title to link it." },
 ```
+
+### Who may use what
+
+Your plug-in never decides who uses it: the community does, with the roles it
+already has. Every page, field, part, action and endpoint sits at a level and
+answers to a permission there. Inside an initiative, the initiative's roles
+hold it, as they hold a tool's permissions: its managers and the community's
+admins always do, and its managers decide for every other role. At the
+community level, the community's admins hold it, as they hold the parts of
+administering the community, and a custom role on the admin rung may keep only
+some.
+
+Every plug-in has `use` at each level without declaring it. Declare more when
+the community should be able to give some people a part of your plug-in and not
+the rest:
+
+```ts
+permissions: [
+  { id: "use", level: "initiative", name: { en: "Use the board" }, members: true },
+  { id: "prices", level: "initiative", name: { en: "See prices" } },
+  { id: "settings", level: "community", name: { en: "Set up the board" } },
+],
+fields: {
+  "board.price": { name: { en: "Price" }, kind: "currency", currency: "EUR", on: ["task"], permission: "prices" },
+},
+```
+
+`members` says whether a role starts with an initiative permission where nobody
+in the community said otherwise; absent, only the roles the community chooses
+hold it. A page names one permission for every level it renders in, so one
+rendering at both names one declared at both. An endpoint naming a permission
+is read only by those who hold it in the initiative it is read in, and is not
+offered to other plug-ins. A handoff and an ID token carry the ids the person
+holds where the page was opened as `permissions`, so your pages can shape
+themselves the same way.
 
 ## 2. Widgets
 

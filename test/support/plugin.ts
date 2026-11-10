@@ -135,7 +135,12 @@ export function trackerPlugin() {
         name: { en: "Board" },
         scopes: ["initiative"],
         handler: async ({ handoff }) =>
-          Response.json({ viewer: handoff?.viewer ?? null, initiative: handoff?.initiative ?? null, admin: handoff?.admin ?? null }),
+          Response.json({
+            viewer: handoff?.viewer ?? null,
+            initiative: handoff?.initiative ?? null,
+            admin: handoff?.admin ?? null,
+            permissions: handoff?.permissions ?? null,
+          }),
       },
     },
     dashboards: [
@@ -419,7 +424,7 @@ export function issuesPlugin() {
         name: { en: "Unlink the issue" },
         on: ["task"],
         menu: true,
-        admin_only: true,
+        permission: "unlink",
         write: '$exists(held."issue.number") ? {"set": {"issue.number": null, "issue.link": null, "issue.state": null}}',
       },
       link: {
@@ -433,6 +438,7 @@ export function issuesPlugin() {
       "unlink-one": { name: { en: "Unlink" }, on: ["task"], write: '{"remove": {"issues.linked": [element]}}' },
     },
     settings: { prefix: { type: "string", label: { en: "Reference prefix" }, unique: true, assigned: "community_name" } },
+    permissions: [{ id: "unlink", level: "initiative", name: { en: "Unlink issues" } }],
     help: { en: "Links issues to tasks. Name a task's reference in an issue's title, such as **acme-7**, to link it." },
   });
 }

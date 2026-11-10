@@ -136,6 +136,8 @@ export interface HandoffClaims extends InitiativeTokenClaims {
   community_admin?: boolean;
   /** With `initiative_id`: whether the member's role there manages it with full access, as a moderator's does. */
   initiative_moderator?: boolean;
+  /** The ids of your permissions the member holds where the page was opened, `use` among them. */
+  permissions?: string[];
 }
 
 /**

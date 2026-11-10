@@ -126,6 +126,7 @@ export const CAPS = {
   fields: 32,
   parts: 16,
   actions: 16,
+  permissions: 16,
   partNodes: 50,
   partDepth: 4,
   facetsPerField: 4,
@@ -237,10 +238,10 @@ export const FIELDS = {
   webhookVerify: ["scheme", "header", "prefix", "encoding", "secret"],
   webhookRoute: ["path", "header", "connection", "field"],
   schedule: ["id", "every", "endpoint", "params", "write"],
-  endpoint: ["id", "label", "description", "returns", "group", "needs_subject", "direction", "params", "actors", "admin_only", "public", "requires", "cache_ttl_seconds", "identity", "unavailable", "request", "steps", "map", "errors"],
+  endpoint: ["id", "label", "description", "returns", "group", "needs_subject", "direction", "params", "actors", "permission", "public", "requires", "cache_ttl_seconds", "identity", "unavailable", "request", "steps", "map", "errors"],
   widget: ["id", "meta", "module_source", "endpoints", "sample_data", "requires"],
-  page: ["id", "path", "name", "scopes", "admin_only", "capabilities", "requires"],
-  field: ["key", "name", "kind", "list", "on", "description", "tone", "currency", "options", "states", "actions", "requires"],
+  page: ["id", "path", "name", "scopes", "permission", "capabilities", "requires"],
+  field: ["key", "name", "kind", "list", "on", "description", "tone", "currency", "options", "states", "actions", "permission", "requires"],
   fieldOption: ["value", "label", "color"],
   stateFacet: ["name", "values"],
   stateValue: ["label", "tone"],
@@ -250,8 +251,9 @@ export const FIELDS = {
   valueNode: ["type", "props"],
   textNode: ["type", "props"],
   buttonNode: ["type", "props"],
-  part: ["id", "name", "on", "tree", "description", "requires"],
-  action: ["id", "name", "endpoint", "params", "write", "on", "confirm", "menu", "admin_only", "requires"],
+  part: ["id", "name", "on", "tree", "description", "permission", "requires"],
+  action: ["id", "name", "endpoint", "params", "write", "on", "confirm", "menu", "permission", "requires"],
+  permission: ["id", "name", "level", "members"],
   change: ["set", "upsert", "remove"],
   targetedChange: ["target", "set", "upsert", "remove"],
   listElement: ["ref", "value", "url", "text", "tone", "max", "state"],
@@ -273,7 +275,7 @@ export const FIELDS = {
   healthState: ["status", "when", "state"],
   webhookEvent: ["when", "emit", "map", "write"],
   webhookStatus: ["when", "connection", "state"],
-  manifest: ["plugin_kind", "service", "features", "default_name", "minimum_age", "min_plugin_api", "hosts", "auth", "scopes", "vendor", "connections", "webhooks", "schedules", "endpoints", "community_summary", "widgets", "pages", "sign_in", "dashboards", "fields", "parts", "actions", "settings", "help"],
+  manifest: ["plugin_kind", "service", "features", "default_name", "minimum_age", "min_plugin_api", "hosts", "auth", "scopes", "vendor", "connections", "webhooks", "schedules", "endpoints", "community_summary", "widgets", "pages", "sign_in", "dashboards", "fields", "parts", "actions", "settings", "permissions", "help"],
 } as const;
 
 export type Identifier = string;
@@ -871,11 +873,13 @@ export interface Endpoint {
    */
   actors?: ActorKind[];
   /**
-   * Only the community's admins read or call this endpoint — a figure for the
-   * community's settings page, say. Anyone who can see where it is used may
-   * otherwise.
+   * Read and write only. The initiative permission a reader holds, in the
+   * initiative it is read in, to read or call this through a widget, an action
+   * or a form: one this manifest declares at the initiative level, or 'use'.
+   * Absent: whoever can see where it is used. An endpoint naming one is not
+   * offered to other plug-ins.
    */
-  admin_only?: boolean;
+  permission?: Identifier;
   /**
    * Read and write only. Other plug-ins may call this endpoint through the
    * deployment, when the community has let them use this plug-in
@@ -967,11 +971,11 @@ export interface Page {
    */
   scopes?: SurfaceScope[];
   /**
-   * Only the community's admins open this page, whatever roles a placement
-   * allows — a settings page, say. Who else may open a page is chosen in the
-   * community, per initiative and per role, not declared here.
+   * The permission that opens it, at each level it renders in: one this
+   * manifest declares at that level, or 'use'. Absent: 'use'. Who holds it is
+   * the community's to decide, never the plug-in's.
    */
-  admin_only?: boolean;
+  permission?: Identifier;
   /**
    * Browser features the frame is granted. A page that names nothing is framed
    * with all of them denied.
@@ -1070,6 +1074,11 @@ export interface Field {
    * action run from an element reads that element's 'ref' as 'element'.
    */
   actions?: Identifier[];
+  /**
+   * The initiative permission a reader holds to see it: one this manifest
+   * declares at the initiative level, or 'use'. Absent: 'use'.
+   */
+  permission?: Identifier;
   requires?: Requires;
 }
 
@@ -1251,6 +1260,11 @@ export interface Part {
    * The one line the view editor's Add picker shows beside the name.
    */
   description?: LocalizedText;
+  /**
+   * The initiative permission a reader holds to see it: one this manifest
+   * declares at the initiative level, or 'use'. Absent: 'use'.
+   */
+  permission?: Identifier;
   requires?: Requires;
 }
 
@@ -1316,12 +1330,43 @@ export interface Action {
    */
   menu?: boolean;
   /**
-   * Only the community's admins run this action, whatever roles a placement
-   * allows. Who else may run it is chosen in the community, per initiative and
-   * per role, not declared here.
+   * The initiative permission a reader holds to run it: one this manifest
+   * declares at the initiative level, or 'use'. Absent: 'use'.
    */
-  admin_only?: boolean;
+  permission?: Identifier;
   requires?: Requires;
+}
+
+/**
+ * Something the community decides who may do with the plug-in, at one level.
+ * Inside an initiative, its roles hold it as they hold a tool's permissions,
+ * and its managers and the community's admins always do. At the community
+ * level, its admins hold it as they hold the parts of administering the
+ * community, and a custom role on the admin rung keeps some of them. The
+ * plug-in names a permission and says whether members start with it; who holds
+ * it is the community's to decide.
+ */
+export interface Permission {
+  /**
+   * Unique among this manifest's permissions of its level. 'use' is every
+   * plug-in's at each level, declared or not: declaring it names it, and inside
+   * an initiative says whether members start with it.
+   */
+  id: Identifier;
+  /**
+   * What the community's role pages call it.
+   */
+  name: LocalizedText;
+  /**
+   * Where it is held: 'initiative' by an initiative's roles, 'community' by the
+   * community's admins.
+   */
+  level: SurfaceScope;
+  /**
+   * An initiative permission's only: whether a role holds it where nobody in
+   * the community said otherwise. Absent: only the roles the community chooses.
+   */
+  members?: boolean;
 }
 
 /**
@@ -2085,6 +2130,13 @@ export interface Manifest {
    * expressions and its parts' text read. At most 16.
    */
   settings?: Setting[];
+  /**
+   * What the community decides who may do with this plug-in, at most 16. Every
+   * page, field, part, action and endpoint answers to one: the one it names, or
+   * 'use' at its level. Absent: 'use' alone, at each level, which inside an
+   * initiative members start without.
+   */
+  permissions?: Permission[];
   /**
    * Help with the plug-in, keyed by language tag: markdown of at most 2000
    * characters in each language. Initiative shows it behind a '?' on the

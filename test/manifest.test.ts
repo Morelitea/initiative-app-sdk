@@ -406,12 +406,12 @@ describe("what an endpoint says about itself", () => {
     expect(messages(problems)).toBe("");
   });
 
-  it("takes admin_only as a boolean", () => {
+  it("takes a permission declared inside an initiative, or use", () => {
     const read = { direction: "read", returns: [{ key: "total", type: "int" }] };
-    expect(messages(validateManifest(withEndpoint({ ...read, admin_only: true })))).toBe("");
-    const problems = validateManifest(withEndpoint({ ...read, admin_only: "yes" }));
-    expect(problems.length).toBeGreaterThan(0);
-    expect(problems[0].where).toBe("/endpoints/0/admin_only");
+    expect(messages(validateManifest(withEndpoint({ ...read, permission: "use" })))).toBe("");
+    expect(messages(validateManifest(withEndpoint({ ...read, permission: "costs" })))).toBe(
+      "/endpoints/0/permission: 'costs' is not a permission this manifest declares at the initiative level"
+    );
   });
 
   it("lets an emission carry a label and a payload", () => {
@@ -943,24 +943,39 @@ describe("the scopes a plug-in asks for", () => {
   });
 });
 
-describe("an admin-only page", () => {
-  const withPage = (page: Record<string, unknown>) =>
+describe("permissions", () => {
+  const settings = { id: "settings", level: "community", name: { en: "Set up" } };
+  const withPage = (page: Record<string, unknown>, permissions: unknown[] = [settings]) =>
     validateManifest({
       ...base(),
       features: ["pages"],
+      permissions,
       pages: [{ id: "settings", path: "/settings", name: { en: "Settings" }, ...page }],
     } as never);
 
-  it("takes admin_only as a boolean", () => {
-    expect(messages(withPage({ admin_only: true }))).toBe("");
-    expect(messages(withPage({ admin_only: false }))).toBe("");
+  it("takes a page naming one declared at every level it renders in, or use", () => {
+    expect(messages(withPage({ permission: "settings" }))).toBe("");
+    expect(messages(withPage({ permission: "use", scopes: ["community", "initiative"] }))).toBe("");
     expect(messages(withPage({}))).toBe("");
+    expect(messages(withPage({ permission: "settings", scopes: ["community", "initiative"] }))).toBe(
+      "/pages/0/permission: 'settings' is not a permission this manifest declares at the initiative level"
+    );
   });
 
-  it("refuses anything else", () => {
-    const problems = withPage({ admin_only: "yes" });
-    expect(problems.length).toBeGreaterThan(0);
-    expect(problems[0].where).toBe("/pages/0/admin_only");
+  it("refuses one declared twice at a level, and members at the community level", () => {
+    expect(messages(withPage({}, [settings, { ...settings, level: "initiative", members: true }]))).toBe("");
+    expect(messages(withPage({}, [settings, settings]))).toBe(
+      "/permissions/1/id: 'settings' is declared twice at the community level"
+    );
+    expect(withPage({}, [{ ...settings, members: true }]).map((problem) => problem.where)).toContain(
+      "/permissions/0/members"
+    );
+  });
+
+  it("is gone as admin_only", () => {
+    expect(messages(withPage({ admin_only: true }))).toBe(
+      "/pages/0/admin_only: 'admin_only' is not a term of the manifest contract, and a deployment discards it"
+    );
   });
 });
 
@@ -1551,9 +1566,9 @@ describe("fields, parts and actions", () => {
     );
   });
 
-  it("keeps a container's action to the write endpoint its handler answers, and takes admin_only", () => {
+  it("keeps a container's action to the write endpoint its handler answers, and takes a permission", () => {
     const manifest = viewed();
-    manifest.actions![0].admin_only = true;
+    manifest.actions![0].permission = "use";
     expect(problems(manifest)).toBe("");
     delete manifest.actions![0].endpoint;
     manifest.actions![0].write = '{"set": {"demo.opened": 1}}';
