@@ -1,6 +1,6 @@
 {
   "name": "initiative-plugin-sdk",
-  "version": "10.1.0",
+  "version": "10.1.1",
   "description": "Build a plug-in for Initiative: one typed definition of its endpoints, hooks, schedules, widgets and listing, the server Initiative calls, the client it calls Initiative with, the CLI that builds its manifest, and declarative integrations Initiative runs from the manifest alone.",
   "license": "MIT",
   "type": "module",
