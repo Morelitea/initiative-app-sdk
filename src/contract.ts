@@ -230,7 +230,7 @@ export const FIELDS = {
   githubAppManifest: ["name", "url", "public", "default_permissions", "default_events"],
   endpointParam: ["key", "type", "required", "label", "options", "options_from", "list"],
   endpointReturn: ["key", "type", "label", "list", "of"],
-  connection: ["id", "scope", "label", "fields", "flow", "token", "access_hint", "health"],
+  connection: ["id", "scope", "label", "fields", "flow", "after_connect", "token", "access_hint", "health"],
   connectionFlow: ["type", "authorize_url", "token_url", "client_id", "client_secret", "scopes", "pkce", "authorize_params", "install_url", "after_connect", "revoke", "revoke_url"],
   connectionToken: ["type", "exchange_url", "exchange_body", "iss", "key", "alg", "lifetime"],
   webhooks: ["verify", "dedup", "route", "events", "status"],
@@ -323,8 +323,9 @@ export interface ConnectionField {
    */
   options?: string[];
   /**
-   * Returned by the plug-in's after_connect hook when a flow finishes; it is
-   * not typed into the settings form.
+   * Returned by the plug-in's after_connect hook, when a flow finishes or when
+   * an admin saves a connection that declares 'after_connect'; it is not typed
+   * into the settings form.
    */
   managed?: boolean;
 }
@@ -521,10 +522,11 @@ export interface Connection {
   scope: ConnectionScope;
   label: LocalizedText;
   /**
-   * Without a 'flow', what an admin types. With one, only the values the
-   * plug-in's after_connect hook returns, and every field is 'managed'. The
-   * tokens a flow obtains are held apart from these, under reserved keys the
-   * plug-in never declares.
+   * Without a 'flow', what an admin types, and the managed values its
+   * 'after_connect' returns. With one, only the values the plug-in's
+   * after_connect hook returns, and every field is 'managed'. The tokens a flow
+   * obtains are held apart from these, under reserved keys the plug-in never
+   * declares.
    */
   fields: ConnectionField[];
   /**
@@ -533,6 +535,16 @@ export interface Connection {
    * client's secret or a refresh token.
    */
   flow?: ConnectionFlow;
+  /**
+   * Static connections without a 'flow', container plug-ins only. True: when an
+   * admin saves the connection, Initiative sends what they typed to the
+   * plug-in's after_connect hook before storing anything, and stores it with
+   * the managed values and account label the hook answers; when the hook
+   * refuses, nothing is stored. When the connection is cleared or replaced,
+   * Initiative sends the plug-in's revoke hook with the values it held, so it
+   * can remove what it made at the vendor.
+   */
+  after_connect?: boolean;
   /**
    * How a usable access token is got for this connection. Absent: the tokens
    * the flow stored, refreshed as needed. Static connections only.
@@ -666,18 +678,18 @@ export interface ConnectionToken {
 /**
  * The vendor's webhooks, received by Initiative at one address per plug-in on
  * the deployment, '/api/v1/plugin-hooks/<public_id>'. Initiative checks each
- * delivery's signature, drops one it has already delivered, finds the
- * communities it belongs to by a value in its body, and forwards it to the
- * plug-in's webhook hook once for each. A container plug-in's hook receives
- * each delivery; a declarative plug-in maps it with 'events' and 'status'
- * instead.
+ * delivery's signature, drops one it has already delivered, by its id or its
+ * body, finds the communities it belongs to by a value in its body, and
+ * forwards it to the plug-in's webhook hook once for each. A container
+ * plug-in's hook receives each delivery; a declarative plug-in maps it with
+ * 'events' and 'status' instead.
  */
 export interface Webhooks {
   verify: WebhookVerify;
   /**
    * The header carrying the vendor's id for one delivery, such as
-   * 'X-GitHub-Delivery'. A delivery with an id already forwarded to a community
-   * is not forwarded to it again.
+   * 'X-GitHub-Delivery'. A delivery with an id already forwarded to a
+   * community, or with the body of one, is not forwarded to it again.
    */
   dedup: string;
   route: WebhookRoute;
@@ -696,8 +708,8 @@ export interface Webhooks {
 }
 
 /**
- * How a delivery's signature is checked: an HMAC over the raw body under a
- * vendor value.
+ * How a delivery's signature is checked: an HMAC over the raw body, under a
+ * vendor value or under the routed connection's own secret.
  */
 export interface WebhookVerify {
   scheme: WebhookScheme;
@@ -715,7 +727,12 @@ export interface WebhookVerify {
    */
   encoding: WebhookEncoding;
   /**
-   * The signing secret, as one vendor value: '{vendor.<key>}'.
+   * The signing secret: one vendor value, written '{vendor.<key>}', which signs
+   * every community's deliveries; or a managed 'secret' field of the connection
+   * 'route' names, written '{<key>}', which that connection's after_connect
+   * hook returned. With a connection's secret, a delivery is routed first and
+   * checked under the secret of each connection its route value names; one that
+   * none of them verifies is refused.
    */
   secret: string;
 }

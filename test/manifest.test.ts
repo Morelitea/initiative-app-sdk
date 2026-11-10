@@ -1243,12 +1243,66 @@ describe("connections Initiative runs", () => {
     expect(messages(validateManifest(manifest))).toContain("'connect_path' is not a term");
   });
 
-  it("holds the webhooks secret to one declared vendor value", () => {
-    for (const secret of ["{vendor.hook}", "sha={vendor.webhook_secret}", "{installation_id}"]) {
+  it("holds the webhooks secret to one declared vendor value or a managed secret of the routed connection", () => {
+    for (const secret of ["{vendor.hook}", "sha={vendor.webhook_secret}", "{installation_id}", "{owner}"]) {
       const manifest = github();
       manifest.webhooks!.verify.secret = secret;
       expect(messages(validateManifest(manifest))).toContain("/webhooks/verify/secret");
     }
+  });
+
+  /** A shop an admin types in, which the plug-in checks and makes webhooks at. */
+  const shop = () => {
+    const manifest = github();
+    manifest.connections!.push({
+      id: "shop",
+      scope: "static",
+      label: { en: "Shop" },
+      fields: [
+        { key: "url", type: "url", required: true, label: { en: "Address" } },
+        { key: "key", type: "secret", required: true, label: { en: "Key" } },
+        { key: "store_id", type: "string", label: { en: "Store" }, managed: true },
+        { key: "hook_secret", type: "secret", label: { en: "Hook secret" }, managed: true },
+      ],
+      after_connect: true,
+    });
+    manifest.webhooks = {
+      verify: { scheme: "hmac_sha256", header: "X-Shop-Signature", encoding: "base64", secret: "{hook_secret}" },
+      dedup: "X-Shop-Delivery",
+      route: { header: "X-Shop-Store", connection: "shop", field: "store_id" },
+    };
+    return manifest;
+  };
+
+  it("checks a typed connection with after_connect, and signs its webhooks with its own secret", () => {
+    expect(messages(validateManifest(shop()))).toBe("");
+  });
+
+  it("takes a connection's webhooks secret only from a managed secret field", () => {
+    for (const secret of ["{key}", "{store_id}", "{nothing}"]) {
+      const manifest = shop();
+      manifest.webhooks!.verify.secret = secret;
+      expect(messages(validateManifest(manifest))).toBe(
+        `/webhooks/verify/secret: '${secret}' is not a managed secret field of the connection 'shop'`
+      );
+    }
+  });
+
+  it("fills a typed connection's managed fields only through its after_connect", () => {
+    const manifest = shop();
+    delete manifest.connections![2].after_connect;
+    expect(messages(validateManifest(manifest))).toBe(
+      "/connections/2/after_connect: managed values come from the after_connect hook, which this connection does not call"
+    );
+  });
+
+  it("keeps after_connect beside the fields to a static connection without a flow", () => {
+    const manifest = github();
+    manifest.connections![0].after_connect = true;
+    manifest.connections![1].after_connect = true;
+    const text = messages(validateManifest(manifest));
+    expect(text).toContain("/connections/0/after_connect: after_connect beside the fields is for a static connection without a flow");
+    expect(text).toContain("/connections/1/after_connect: after_connect beside the fields is for a static connection without a flow");
   });
 
   it("routes webhooks by a field of a static connection", () => {
@@ -1607,6 +1661,7 @@ describe("declarative plug-ins", () => {
     delete manifest.endpoints![0].request;
     manifest.connections![0].flow!.after_connect = true;
     manifest.connections![1].flow!.revoke = "hook";
+    manifest.connections![1].after_connect = true;
     manifest.features.push("pages");
     manifest.pages = [{ id: "board", path: "/board", name: { en: "Board" } }];
     delete manifest.schedules![0].write;
@@ -1616,6 +1671,7 @@ describe("declarative plug-ins", () => {
     expect(text).toContain("/endpoints/0: a declarative endpoint gives exactly one of 'request' and 'steps'");
     expect(text).toContain("/connections/0/flow/after_connect: a declarative plug-in gives after_connect's request and map");
     expect(text).toContain("/connections/1/flow/revoke: a declarative plug-in has no revoke hook");
+    expect(text).toContain("/connections/1/after_connect: a declarative plug-in has no after_connect hook");
     expect(text).toContain("/pages: a declarative plug-in has no pages: a page is served by a container");
     expect(text).toContain(
       "/schedules/0: a declarative plug-in's schedule names the read it makes and the write it makes from the answer"

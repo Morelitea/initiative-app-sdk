@@ -30,6 +30,7 @@ import {
   type AnyPlugin,
   type PluginContext,
   type Call,
+  type ConnectionValue,
   type EndpointDeclaration,
   type Handoff,
   type Hooks,
@@ -66,6 +67,7 @@ export type {
   AfterConnectCall,
   PluginContext,
   Call,
+  ConnectionValue,
   EndpointCall,
   Handoff,
   ItemRef,
@@ -294,6 +296,7 @@ export function createPlugin(
           connection: raw.connection as string,
           access_token: optionalString(raw.access_token),
           refresh_token: optionalString(raw.refresh_token),
+          values: connectionValues(raw.values) ?? {},
         }),
       `revoke for ${raw.connection}`
     );
@@ -489,18 +492,36 @@ async function jsonBody(request: Request): Promise<unknown> {
   }
 }
 
-function afterConnectCall(
-  raw: Record<string, unknown>
-): { connection: string; actor: ActorKind; access_token: string; params: Record<string, string> } | null {
+function afterConnectCall(raw: Record<string, unknown>): {
+  connection: string;
+  actor: ActorKind;
+  access_token: string | null;
+  values: Record<string, ConnectionValue>;
+  params: Record<string, string>;
+} | null {
   if (raw.actor !== "installation" && raw.actor !== "member") return null;
-  if (typeof raw.access_token !== "string" || !raw.access_token) return null;
+  // A flow's call carries the token it obtained; a typed connection's, what was typed.
+  const access_token = optionalString(raw.access_token);
+  const values = connectionValues(raw.values);
+  if (access_token === null && values === null) return null;
   if (raw.params !== undefined && raw.params !== null && !isRecord(raw.params)) return null;
   const params = Object.fromEntries(
     Object.entries((raw.params ?? {}) as Record<string, unknown>).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string"
     )
   );
-  return { connection: raw.connection as string, actor: raw.actor, access_token: raw.access_token, params };
+  return { connection: raw.connection as string, actor: raw.actor, access_token, values: values ?? {}, params };
+}
+
+/** A connection's values as a hook is sent them, or null when there are none. */
+function connectionValues(value: unknown): Record<string, ConnectionValue> | null {
+  if (!isRecord(value)) return null;
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, ConnectionValue] =>
+        typeof entry[1] === "string" || typeof entry[1] === "number" || typeof entry[1] === "boolean"
+    )
+  );
 }
 
 function webhookCall(raw: Record<string, unknown>) {

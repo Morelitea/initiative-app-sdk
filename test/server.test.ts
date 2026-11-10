@@ -249,6 +249,18 @@ describe("hooks", () => {
     expect(refused.body).toEqual({ refuse: true });
   });
 
+  it("hands after_connect what was typed into a connection without a flow", async () => {
+    const typed = { connection: "shop", actor: "installation", values: { url: "https://shop.example", key: "k", stray: {} } };
+    expect((await post("/v1/hooks/after_connect", typed, hookToken("after_connect"))).status).toBe(200);
+    expect(seen[0].call).toMatchObject({
+      connection: "shop",
+      access_token: null,
+      values: { url: "https://shop.example", key: "k" },
+      params: {},
+    });
+    expect(seen[0].call).not.toHaveProperty("values.stray");
+  });
+
   it("answers a failed hook with 500, and logs which", async () => {
     const { status } = await post("/v1/hooks/after_connect", { ...connected, access_token: "fail" }, hookToken("after_connect"));
     expect(status).toBe(500);
@@ -269,7 +281,10 @@ describe("hooks", () => {
     expect(seen[0].call).toMatchObject({ headers: { "x-vendor-event": "opened" }, body: '{"a":1}' });
     const revoked = await post("/v1/hooks/revoke", { connection: "account", access_token: "t" }, hookToken("revoke"));
     expect(revoked.status).toBe(204);
-    expect(seen[1].call).toMatchObject({ access_token: "t", refresh_token: null });
+    expect(seen[1].call).toMatchObject({ access_token: "t", refresh_token: null, values: {} });
+    const ended = await post("/v1/hooks/revoke", { connection: "shop", values: { key: "k", hook_id: 7 } }, hookToken("revoke"));
+    expect(ended.status).toBe(204);
+    expect(seen[2].call).toMatchObject({ access_token: null, values: { key: "k", hook_id: 7 } });
   });
 
   it("refuses a token minted for another hook, an endpoint token, and none", async () => {
@@ -283,6 +298,8 @@ describe("hooks", () => {
     expect((await post("/v1/hooks/before_connect", connected, hookToken("before_connect"))).status).toBe(404);
     const bad = await post("/v1/hooks/after_connect", { connection: "account", actor: "nobody" }, hookToken("after_connect"));
     expect(bad).toEqual({ status: 400, body: { error: "invalid-request", detail: "not an after_connect call" } });
+    const empty = await post("/v1/hooks/after_connect", { connection: "shop", actor: "installation" }, hookToken("after_connect"));
+    expect(empty.status).toBe(400);
   });
 });
 
