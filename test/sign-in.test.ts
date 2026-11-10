@@ -42,7 +42,7 @@ function idToken(extra: Record<string, unknown> = {}, typ = "JWT"): string {
     {
       jti: "id-1",
       iss: ISSUER,
-      aud: audienceFor(PUBLIC_ID),
+      aud: PUBLIC_ID,
       sub: "uapp_member",
       iat,
       exp: iat + 600,
@@ -144,7 +144,7 @@ describe("SignIn.complete", () => {
     ).rejects.toMatchObject({ error: "access_denied" });
   });
 
-  it("refuses an ID token without this sign-in's nonce, and a handoff in its place", async () => {
+  it("refuses an ID token without this sign-in's nonce, and a handoff's issuer or audience", async () => {
     const client = initiative().signIn;
     const pending = client.begin({ redirectUri: REDIRECT });
     idTokenClaims = { nonce: "someone-elses" };
@@ -153,6 +153,11 @@ describe("SignIn.complete", () => {
     idTokenClaims = { nonce: pending.nonce, iss: "initiative" };
     await expect(client.complete(`${REDIRECT}?code=icd_2&state=${pending.state}`, pending)).rejects.toThrow(
       /from initiative/
+    );
+
+    idTokenClaims = { nonce: pending.nonce, aud: audienceFor(PUBLIC_ID) };
+    await expect(client.complete(`${REDIRECT}?code=icd_3&state=${pending.state}`, pending)).rejects.toThrow(
+      /token is for initiative-plugin:/
     );
   });
 });

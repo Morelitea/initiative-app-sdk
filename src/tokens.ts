@@ -341,14 +341,21 @@ export async function verifyHandoffToken(
  * Verify an ID token from Sign in with Initiative and return its claims.
  *
  * `issuer` is the deployment's own address (the authorize request's), never
- * `initiative`: a handoff is not an ID token, nor an ID token a handoff. When
- * `nonce` is given the token must carry it.
+ * `initiative`, and the audience is the plug-in's public id, its `client_id`,
+ * not `initiative-plugin:<public id>`: a handoff is not an ID token, nor an ID
+ * token a handoff. When `nonce` is given the token must carry it.
  */
 export async function verifyIdToken(
   token: string,
   options: VerifyOptions & { issuer: string; nonce?: string }
 ): Promise<IdTokenClaims> {
-  const claims = (await verifyInitiativeToken(token, options, ID_TOKEN_TYPE)) as IdTokenClaims;
+  // OpenID Connect Core §2: the audience is the client_id, the bare public id.
+  const claims = (await verifyInitiativeToken(
+    token,
+    options,
+    ID_TOKEN_TYPE,
+    options.publicId
+  )) as IdTokenClaims;
   if (typeof claims.sub !== "string" || !claims.sub) {
     throw new ContextTokenError("ID token names no member");
   }
@@ -388,7 +395,8 @@ export async function verifyLifecycleToken(
 async function verifyInitiativeToken(
   token: string,
   options: VerifyOptions,
-  typ: string
+  typ: string,
+  audience: string = audienceFor(options.publicId)
 ): Promise<InitiativeTokenClaims> {
   const parts = token.split(".");
   if (parts.length !== 3) {
@@ -414,9 +422,8 @@ async function verifyInitiativeToken(
   }
 
   const claims = decodeJson(rawPayload) as InitiativeTokenClaims;
-  const expected = audienceFor(options.publicId);
-  if (claims.aud !== expected) {
-    throw new ContextTokenError(`token is for ${claims.aud}, not ${expected}`);
+  if (claims.aud !== audience) {
+    throw new ContextTokenError(`token is for ${claims.aud}, not ${audience}`);
   }
   const issuer = options.issuer ?? INITIATIVE_ISSUER;
   if (claims.iss !== issuer) {
