@@ -36,6 +36,7 @@ import {
 import type { ActorKind, ItemKind, PluginScope, Scope } from "./contract.js";
 import type { Actor, ItemRef } from "./define.js";
 import { signJwt, type PluginSigningKey } from "./keys.js";
+import { SignIn } from "./sign-in.js";
 import type { EntitlementStatements } from "./statements.js";
 
 export {
@@ -49,6 +50,14 @@ export {
   type PublicJwk,
 } from "./keys.js";
 export type { PluginApi, PluginApiSchemas } from "./plugin-api.generated.js";
+export {
+  AUTHORIZE_PATH,
+  SignIn,
+  SignInError,
+  type PendingSignIn,
+  type SignedIn,
+} from "./sign-in.js";
+export type { IdTokenClaims } from "./tokens.js";
 export {
   ENTITLEMENT_ISSUER_KEY_ENV,
   EntitlementStatementError,
@@ -395,11 +404,7 @@ class Tokens {
         ]
       );
     } else {
-      form.push(
-        ["grant_type", "client_credentials"],
-        ["client_assertion_type", CLIENT_ASSERTION_TYPE],
-        ["client_assertion", this.assertion(this.options.publicId, {})]
-      );
+      form.push(["grant_type", "client_credentials"], ...this.clientAuthentication());
       if (grant) form.push(["installation", grant.installation]);
     }
     if (grant?.scopes.length) form.push(["scope", grant.scopes.join(" ")]);
@@ -407,6 +412,21 @@ class Tokens {
     if (grant?.level !== undefined) form.push(["level", grant.level]);
 
     const issuedAt = this.now();
+    const body = await this.request(form);
+    const lifetime = typeof body.expires_in === "number" && body.expires_in > 0 ? body.expires_in : 0;
+    return {
+      token: body.access_token as string,
+      scopes: typeof body.scope === "string" ? body.scope.split(" ").filter(Boolean) : [...(grant?.scopes ?? [])],
+      expiresAt: issuedAt + lifetime * 1000,
+    };
+  }
+
+  /**
+   * One token request, authenticating as the plug-in unless the form already
+   * carries its own assertion, answered with the response body: an access
+   * token, or an {@link InitiativeAuthError} for the endpoint's refusal.
+   */
+  async request(form: Array<[string, string]>): Promise<Record<string, unknown>> {
     const response = await this.fetch(this.endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
@@ -430,12 +450,15 @@ class Tokens {
     if (typeof body.token_type === "string" && body.token_type.toLowerCase() !== "bearer") {
       throw new InitiativeAuthError("invalid_response", `unexpected token_type ${body.token_type}`, response.status);
     }
-    const lifetime = typeof body.expires_in === "number" && body.expires_in > 0 ? body.expires_in : 0;
-    return {
-      token: body.access_token,
-      scopes: typeof body.scope === "string" ? body.scope.split(" ").filter(Boolean) : [...(grant?.scopes ?? [])],
-      expiresAt: issuedAt + lifetime * 1000,
-    };
+    return body;
+  }
+
+  /** The form fields that authenticate the plug-in itself (RFC 7523 §2.2). */
+  clientAuthentication(): Array<[string, string]> {
+    return [
+      ["client_assertion_type", CLIENT_ASSERTION_TYPE],
+      ["client_assertion", this.assertion(this.options.publicId, {})],
+    ];
   }
 
   /** A signed assertion addressed to the token endpoint. */
@@ -456,9 +479,12 @@ class Tokens {
 /** Initiative, for one plug-in on one deployment. */
 export class Initiative {
   private readonly tokens: Tokens;
+  /** Sign in with Initiative, for the plug-in's own address. */
+  readonly signIn: SignIn;
 
   constructor(options: InitiativeOptions) {
     this.tokens = new Tokens(options);
+    this.signIn = new SignIn(this.tokens, options);
   }
 
   /**

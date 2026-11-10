@@ -345,6 +345,46 @@ any path under the page's as `Authorization: Bearer …`: the SDK verifies it
 handler `viewer`, `admin`, `initiative` and a `client` acting as the
 installation, narrowed to that initiative.
 
+### Sign in with Initiative
+
+A plug-in with pages may also be opened at its own address, full-window.
+People sign in there with their Initiative account and land in one of your
+pages; your plug-in keeps no accounts of its own. Name the page and the path
+Initiative sends them back to:
+
+```ts
+signIn: { page: "board", returnPath: "/signed-in" },
+```
+
+The return address is that path on the origin your pages are served from,
+matched exactly. The flow is OpenID Connect's authorization code flow, and
+`initiative.signIn` is the whole client half:
+
+```ts
+const initiative = new Initiative({ baseUrl, publicId, key });
+
+// 1. Send the person to Initiative; keep the rest in your own session.
+const { url, ...pending } = initiative.signIn.begin({ redirectUri: "https://board.example.com/signed-in" });
+session.pending = pending;
+return Response.redirect(url, 302);
+
+// 2. They come back to /signed-in, having chosen where to open the page.
+const signedIn = await initiative.signIn.complete(request.url, session.pending);
+startSession(signedIn.claims, signedIn.refreshToken); // the handoff's claims for that place
+
+// 3. Before signedIn.expiresAt, renew on the server.
+const renewed = await initiative.signIn.refresh(refreshToken);
+```
+
+The ID token carries what a handoff carries for the place they chose (`sub`,
+`community_ref`, `surface_id`, `community_admin`, and `initiative_id` with
+`initiative_moderator` inside an initiative), and nothing about their name,
+address or other communities. Its issuer is the deployment's own address, so a
+handoff is never accepted as an ID token, nor the other way round. Every
+renewal asks Initiative again whether the person is still signed in there and
+may still open the page in that place: an `invalid_grant` (`SignInError`) ends
+your session. Another community is another sign-in.
+
 ### Where a community stands
 
 `communitySummary` names a read whose returns say what a community has used and

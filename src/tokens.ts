@@ -48,6 +48,8 @@ export const INITIATIVE_ISSUER = "initiative";
 export const CONTEXT_TOKEN_TYPE = "initiative-context+jwt";
 /** `typ` on a page handoff. */
 export const HANDOFF_TOKEN_TYPE = "initiative-handoff+jwt";
+/** `typ` on an ID token from Sign in with Initiative. */
+export const ID_TOKEN_TYPE = "JWT";
 
 /**
  * Where a community stands, as Initiative states it. Anything but `active`
@@ -132,6 +134,19 @@ export interface HandoffClaims extends InitiativeTokenClaims {
   initiative_id?: number;
   /** Whether the member administers the community. */
   community_admin?: boolean;
+  /** With `initiative_id`: whether the member's role there manages it with full access, as a moderator's does. */
+  initiative_moderator?: boolean;
+}
+
+/**
+ * An ID token from Sign in with Initiative: the handoff's claims for the place
+ * the member chose, from an issuer that is the deployment's own address.
+ */
+export interface IdTokenClaims extends HandoffClaims {
+  /** The `nonce` the sign-in was started with. Absent on a renewal. */
+  nonce?: string;
+  /** When the member signed in to Initiative, in seconds since the epoch. */
+  auth_time?: number;
 }
 
 export class ContextTokenError extends Error {}
@@ -318,6 +333,30 @@ export async function verifyHandoffToken(
   }
   if (typeof claims.surface_id !== "string" || !claims.surface_id) {
     throw new ContextTokenError("handoff token names no page");
+  }
+  return claims;
+}
+
+/**
+ * Verify an ID token from Sign in with Initiative and return its claims.
+ *
+ * `issuer` is the deployment's own address (the authorize request's), never
+ * `initiative`: a handoff is not an ID token, nor an ID token a handoff. When
+ * `nonce` is given the token must carry it.
+ */
+export async function verifyIdToken(
+  token: string,
+  options: VerifyOptions & { issuer: string; nonce?: string }
+): Promise<IdTokenClaims> {
+  const claims = (await verifyInitiativeToken(token, options, ID_TOKEN_TYPE)) as IdTokenClaims;
+  if (typeof claims.sub !== "string" || !claims.sub) {
+    throw new ContextTokenError("ID token names no member");
+  }
+  if (typeof claims.surface_id !== "string" || !claims.surface_id) {
+    throw new ContextTokenError("ID token names no page");
+  }
+  if (options.nonce !== undefined && claims.nonce !== options.nonce) {
+    throw new ContextTokenError("ID token does not carry this sign-in's nonce");
   }
   return claims;
 }

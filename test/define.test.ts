@@ -191,6 +191,22 @@ describe("the oldest plug-in API it needs", () => {
   });
 });
 
+describe("signing in at the plug-in's own address", () => {
+  it("is written as sign_in, after the pages", () => {
+    const signing = manifestOf(
+      { ...plugin, signIn: { page: "board", returnPath: "/signed-in" } },
+      { "open-count": "globalThis.render = function () {};" }
+    );
+    expect(signing.sign_in).toEqual({ page: "board", return_path: "/signed-in" });
+    expect(Object.keys(signing).indexOf("sign_in")).toBe(Object.keys(signing).indexOf("pages") + 1);
+    expect(validateManifest(signing)).toEqual([]);
+  });
+
+  it("is left out when the definition says nothing", () => {
+    expect("sign_in" in manifest).toBe(false);
+  });
+});
+
 describe("a declarative definition", () => {
   const declarative = manifestOf(issuesPlugin());
 
